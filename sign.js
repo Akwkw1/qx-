@@ -1,34 +1,55 @@
-// Quantumult X 自动每日签到
-// hostname: bkbf.xn--vhqr42drhf5k7b.com
-const $task = new $quantumultX();
+// QuantumultX 自动抓取认证 + 每日签到
+const $ = new Env('APP自动签到');
+const host = "bkbf.xn--vhqr42drhf5k7b.com";
 
-// 固定请求头
-const headers = {
-  "x-version": "2024-09-24",
-  "user-agent": "Dart/3.6 (dart:io)",
-  "appid": "4150439554430627",
-  "accept-encoding": "gzip",
-  "content-type": "application/json; charset=utf-8",
-  "authentication": "aREcvsIksAfuU6hUp/4LzpMYQ6emb2ikjo5VoVfDje50YisHWz+SURkSO+4ngwTENoSDHNA++RGjk8vpEZERBRAocatPxnJqC/gxYVPkhDDNu4iFQXEC+fri2K/OreDl",
-  "x-token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVVUlEIjoiNDIxNjJhY2QtMzVhMy00MWFhLTlmZmUtMjlhZWFkZWNiMWZiIiwiQnVmZmVyVGltZSI6ODY0MDAwMDAwMDAwMDAsImV4cCI6MTc3ODQyNTQ0OSwibmJmIjoxNzc3ODIwNjQ5fQ.24OOkwSaNNOyRBR_MJP4STaLsq1_tOQHGaskiqz1STU"
-};
+const KEY_AUTH = "save_auth_str";
+const KEY_TOKEN = "save_token_str";
 
-// 签到接口
-const signUrl = "http://bkbf.xn--vhqr42drhf5k7b.com/app/task/sign";
+// 抓包保存鉴权
+if ($request) {
+    let headers = $request.headers;
+    let auth = headers['authentication'];
+    let token = headers['x-token'];
 
-(async function() {
-  try {
-    let res = await $task.fetch({
-      url: signUrl,
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify({})
+    if (auth && token) {
+        $.setData(auth, KEY_AUTH);
+        $.setData(token, KEY_TOKEN);
+        $.notify("捕获成功", "已保存登录凭证", "下次自动签到可用");
+    }
+    $done({});
+} 
+// 定时签到
+else {
+    let auth = $.getData(KEY_AUTH);
+    let token = $.getData(KEY_TOKEN);
+
+    if (!auth || !token) {
+        $.notify("签到失败", "无凭证", "请先开一次APP抓包");
+        $done();
+        return;
+    }
+
+    let signUrl = `http://${host}/app/task/sign`;
+    let headers = {
+        "x-version": "2024-09-24",
+        "user-agent": "Dart/3.6 (dart:io)",
+        "appid": "4150439554430627",
+        "content-type": "application/json; charset=utf-8",
+        "authentication": auth,
+        "x-token": token
+    };
+
+    $.post({
+        url: signUrl,
+        headers: headers,
+        body: "{}",
+        success: (ret) => {
+            $.notify("今日签到成功", "返回结果", ret);
+            $done();
+        },
+        fail: () => {
+            $.notify("签到失败", "请求出错", "接口异常");
+            $done();
+        }
     });
-    console.log("✅ 签到成功，返回：", res.body);
-    $task.notify("自动签到", "执行完成", "已完成今日APP签到");
-  } catch (e) {
-    console.log("❌ 签到失败：", e);
-    $task.notify("自动签到", "执行失败", "接口请求异常");
-  }
-  $task.done();
-})();
+}
